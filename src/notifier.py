@@ -2,23 +2,22 @@ import requests
 from typing import List, Dict, Any
 
 def send_telegram_alert(token: str, chat_id: str, alerts: List[Dict[str, Any]]) -> bool:
-    """Отправляет структурированное уведомление об атаках в Telegram."""
+    """Dispatches structured incident notifications to Telegram."""
     if not alerts:
         return True
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
 
-    # Формируем текст сообщения в Markdown-разметке
-    message_lines = ["🚨 *[AuthSentry] Обнаружена атака Brute-Force!* 🚨\n"]
+    message_lines = ["🚨 *[AuthSentry] SSH Brute-Force Incident Alert!* 🚨\n"]
 
     for alert in alerts:
         users = ", ".join(alert["targeted_users"])
         message_lines.append(
-            f"• *IP:* `{alert['ip']}`\n"
-            f"  *Попыток:* {alert['attempts']}\n"
-            f"  *Целевые логины:* {users}\n"
-            f"  *Период:* {alert['first_seen']} — {alert['last_seen']}\n"
-            f"  *Уровень риска:* {alert['severity']}\n"
+            f"• *Attacker IP:* `{alert['ip']}`\n"
+            f"  *Attempts:* {alert['attempts']} (window: {alert.get('window_seconds', 120)}s)\n"
+            f"  *Targeted Accounts:* {users}\n"
+            f"  *Time Frame:* {alert['first_seen']} — {alert['last_seen']}\n"
+            f"  *Severity:* {alert['severity']}\n"
         )
 
     payload = {
