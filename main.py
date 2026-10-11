@@ -5,6 +5,7 @@ from src.parser import parse_auth_line
 from src.detector import BruteForceDetector
 from src.reporter import export_to_json, export_to_csv
 from src.notifier import send_telegram_alert
+from src.enricher import get_ip_intel
 
 console = Console()
 
@@ -24,6 +25,12 @@ def main():
         help="Порог неудачных попыток для срабатывания алерта (по умолчанию: 4)"
     )
     parser.add_argument(
+        "--window", "-w",
+        type=int,
+        default=120,
+        help="Ширина временного окна в секундах (по умолчанию: 120)"
+    )
+    parser.add_argument(
         "--json",
         metavar="OUTPUT_PATH",
         help="Путь для сохранения отчета в формате JSON"
@@ -38,12 +45,6 @@ def main():
         nargs=2,
         metavar=("BOT_TOKEN", "CHAT_ID"),
         help="Отправить алерт в Telegram: передайте TOKEN и CHAT_ID"
-    )
-    parser.add_argument(
-        "--window", "-w",
-        type=int,
-        default=120,
-        help="Ширина временного окна в секундах (по умолчанию: 120)"
     )
     args = parser.parse_args()
 
@@ -65,13 +66,19 @@ def main():
 
     alerts = detector.get_alerts()
 
+    # Обогащаем каждый обнаруженный инцидент данными Threat Intel
+    for alert in alerts:
+        intel = get_ip_intel(alert["ip"])
+        alert["geo"] = f"{intel['country']} ({intel['city']})"
+        alert["org"] = intel["org"]
+
     # Отрисовка таблицы результатов
     table = Table(title=f"\n[bold red]ОТЧЕТ ОБ ИНЦИДЕНТАХ (Обработано строк: {processed_lines})[/bold red]")
     table.add_column("Атакующий IP", style="cyan", no_wrap=True)
+    table.add_column("Локация / Провайдер", style="blue")
     table.add_column("Попыток", justify="center", style="magenta")
     table.add_column("Целевые логины", style="yellow")
-    table.add_column("Первая попытка", style="dim")
-    table.add_column("Крайняя попытка", style="dim")
+    table.add_column("Интервал", style="dim")
     table.add_column("Уровень риска", justify="center", style="bold red")
 
     if not alerts:
@@ -80,12 +87,14 @@ def main():
 
     for alert in alerts:
         users = ", ".join(alert["targeted_users"])
+        location_info = f"{alert['geo']}\n[dim]{alert['org']}[/dim]"
+        time_interval = f"{alert['first_seen']} - {alert['last_seen']}"
         table.add_row(
             alert["ip"],
+            location_info,
             str(alert["attempts"]),
             users,
-            alert["first_seen"],
-            alert["last_seen"],
+            time_interval,
             alert["severity"]
         )
 
@@ -107,7 +116,7 @@ def main():
         if send_telegram_alert(token, chat_id, alerts):
             console.print("[bold green]✓ Алерт успешно отправлен в Telegram![/bold green]")
         else:
-            console.print("[bold red]✗ Не удалось отправить алерт в Telegram (проверьте токен и chat_id).[/bold red]")
+            console.print("[bold red]✗ Не удалось отправить алерт в Telegram.[/bold red]")
 
 if __name__ == "__main__":
     main()
