@@ -1,0 +1,23 @@
+# AuthSentry Configuration File
+
+detection:
+  threshold: 4              # Minimum failed attempts to trigger incident
+  window_seconds: 120       # Sliding time window in seconds
+
+log:
+  file_path: "sample_logs/auth.log"
+
+mitigation:
+  block_enabled: false      # Automatically apply firewall rules
+  dry_run: true             # Simulate mitigation commands without execution
+
+# Whitelist: IP addresses or subnets that will NEVER be blocked or alerted
+whitelist:
+  - "127.0.0.1"
+  - "192.168.1.105"           # Default gateway / router
+  - "10.0.0.0/8"            # Internal management subnet
+
+telegram:
+  enabled: false
+  bot_token: ""
+  chat_id: ""

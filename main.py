@@ -9,11 +9,11 @@ from src.notifier import send_telegram_alert
 from src.enricher import get_ip_intel
 from src.watcher import follow_log
 from src.responder import block_ip
+from src.config import load_config
 
 console = Console()
 
 def handle_incident_response(alert: dict, should_block: bool, dry_run: bool):
-    """Executes automated mitigation actions."""
     if should_block:
         ip = alert["ip"]
         result = block_ip(ip, dry_run=dry_run)
@@ -25,26 +25,25 @@ def handle_incident_response(alert: dict, should_block: bool, dry_run: bool):
             console.print(f"  [bold red]🛡️ Active Response:[/bold red] {result['message']}")
 
 def print_alert_card(alert: dict):
-    """Displays incident summary in real-time monitoring mode."""
     console.print(f"\n[bold red]🚨 REAL-TIME ATTACK DETECTED![/bold red]")
     console.print(f"  [cyan]Attacker IP:[/cyan] {alert['ip']} ([dim]{alert['geo']} | {alert['org']}[/dim])")
     console.print(f"  [magenta]Failed Attempts:[/magenta] {alert['attempts']} in {alert['window_seconds']}s window")
     console.print(f"  [yellow]Targeted Accounts:[/yellow] {', '.join(alert['targeted_users'])}")
     console.print(f"  [bold red]Severity:[/bold red] {alert['severity']}")
 
-def run_batch_analysis(args, detector):
+def run_batch_analysis(file_path: str, detector: BruteForceDetector, block: bool, dry_run: bool, json_path: str, csv_path: str, tg_config: dict):
     processed_lines = 0
-    console.print(f"[bold cyan]Initiating log analysis:[/bold cyan] {args.file}")
+    console.print(f"[bold cyan]Initiating log analysis:[/bold cyan] {file_path}")
 
     try:
-        with open(args.file, "r", encoding="utf-8") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             for line in f:
                 processed_lines += 1
                 event = parse_auth_line(line)
                 if event:
                     detector.process_event(event)
     except FileNotFoundError:
-        console.print(f"[bold red]Error:[/bold red] File {args.file} not found.")
+        console.print(f"[bold red]Error:[/bold red] File {file_path} not found.")
         return
 
     alerts = detector.get_alerts()
@@ -81,38 +80,34 @@ def run_batch_analysis(args, detector):
 
     console.print(table)
 
-    # Active defense mitigation
-    if args.block:
+    if block:
         console.print("\n[bold]Applying automated mitigation countermeasures:[/bold]")
         for alert in alerts:
-            handle_incident_response(alert, should_block=True, dry_run=args.dry_run)
+            handle_incident_response(alert, should_block=True, dry_run=dry_run)
 
-    # Artifact export
-    if args.json:
-        export_to_json(alerts, args.json)
-        console.print(f"[bold green]✓ JSON report exported to:[/bold green] {args.json}")
+    if json_path:
+        export_to_json(alerts, json_path)
+        console.print(f"[bold green]✓ JSON report exported to:[/bold green] {json_path}")
 
-    if args.csv:
-        export_to_csv(alerts, args.csv)
-        console.print(f"[bold green]✓ CSV report exported to:[/bold green] {args.csv}")
+    if csv_path:
+        export_to_csv(alerts, csv_path)
+        console.print(f"[bold green]✓ CSV report exported to:[/bold green] {csv_path}")
 
-    # Telegram notification
-    if args.telegram:
-        token, chat_id = args.telegram
+    if tg_config.get("enabled") and tg_config.get("bot_token") and tg_config.get("chat_id"):
         console.print("[dim]Dispatching Telegram alerts...[/dim]")
-        if send_telegram_alert(token, chat_id, alerts):
+        if send_telegram_alert(tg_config["bot_token"], tg_config["chat_id"], alerts):
             console.print("[bold green]✓ Alert notification successfully sent to Telegram![/bold green]")
         else:
-            console.print("[bold red]✗ Failed to dispatch Telegram alert (check token and chat ID).[/bold red]")
+            console.print("[bold red]✗ Failed to dispatch Telegram alert.[/bold red]")
 
-def run_watch_mode(args, detector):
+def run_watch_mode(file_path: str, detector: BruteForceDetector, block: bool, dry_run: bool, tg_config: dict):
     console.print(f"[bold green]AuthSentry running in continuous monitoring mode (--watch)[/bold green]")
-    console.print(f"Monitoring log target: [cyan]{args.file}[/cyan]. Press [bold yellow]Ctrl + C[/bold yellow] to exit.\n")
+    console.print(f"Monitoring log target: [cyan]{file_path}[/cyan]. Press [bold yellow]Ctrl + C[/bold yellow] to exit.\n")
     
     reported_ips = set()
 
     try:
-        for line in follow_log(args.file):
+        for line in follow_log(file_path):
             event = parse_auth_line(line)
             if event:
                 detector.process_event(event)
@@ -127,76 +122,48 @@ def run_watch_mode(args, detector):
                         alert["org"] = intel["org"]
 
                         print_alert_card(alert)
-                        handle_incident_response(alert, should_block=args.block, dry_run=args.dry_run)
+                        handle_incident_response(alert, should_block=block, dry_run=dry_run)
 
-                        if args.telegram:
-                            token, chat_id = args.telegram
-                            send_telegram_alert(token, chat_id, [alert])
+                        if tg_config.get("enabled") and tg_config.get("bot_token") and tg_config.get("chat_id"):
+                            send_telegram_alert(tg_config["bot_token"], tg_config["chat_id"], [alert])
     except KeyboardInterrupt:
         console.print("\n[yellow]Monitoring loop terminated by user.[/yellow]")
         sys.exit(0)
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="AuthSentry: OpenSSH Brute-Force Log Analyzer & Incident Responder"
-    )
-    parser.add_argument(
-        "--file", "-f",
-        default="sample_logs/auth.log",
-        help="Path to authentication log file (default: sample_logs/auth.log)"
-    )
-    parser.add_argument(
-        "--threshold", "-t",
-        type=int,
-        default=4,
-        help="Failed attempts threshold (default: 4)"
-    )
-    parser.add_argument(
-        "--window", "-w",
-        type=int,
-        default=120,
-        help="Sliding time window in seconds (default: 120)"
-    )
-    parser.add_argument(
-        "--watch",
-        action="store_true",
-        help="Enable continuous real-time monitoring mode (live tail)"
-    )
-    parser.add_argument(
-        "--block",
-        action="store_true",
-        help="Trigger automated firewall mitigation for detected attacker IPs"
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=True,
-        help="Simulate firewall countermeasures without executing commands (default: True)"
-    )
-    parser.add_argument(
-        "--json",
-        metavar="OUTPUT_PATH",
-        help="Export findings to structured JSON file"
-    )
-    parser.add_argument(
-        "--csv",
-        metavar="OUTPUT_PATH",
-        help="Export findings to CSV spreadsheet"
-    )
-    parser.add_argument(
-        "--telegram",
-        nargs=2,
-        metavar=("BOT_TOKEN", "CHAT_ID"),
-        help="Dispatch alerts via Telegram API: provide BOT_TOKEN and CHAT_ID"
-    )
+    parser = argparse.ArgumentParser(description="AuthSentry: OpenSSH Brute-Force Log Analyzer & Incident Responder")
+    parser.add_argument("--config", "-c", default="config.yaml", help="Path to config.yaml (default: config.yaml)")
+    parser.add_argument("--file", "-f", help="Override log file path")
+    parser.add_argument("--threshold", "-t", type=int, help="Override threshold limit")
+    parser.add_argument("--window", "-w", type=int, help="Override sliding window in seconds")
+    parser.add_argument("--watch", action="store_true", help="Enable continuous real-time monitoring mode")
+    parser.add_argument("--block", action="store_true", help="Enable firewall blocking")
+    parser.add_argument("--no-dry-run", action="store_true", help="Execute real firewall commands")
+    parser.add_argument("--json", metavar="PATH", help="Export findings to JSON file")
+    parser.add_argument("--csv", metavar="PATH", help="Export findings to CSV file")
+    parser.add_argument("--telegram", nargs=2, metavar=("TOKEN", "CHAT_ID"), help="Provide Telegram credentials directly")
     args = parser.parse_args()
 
-    detector = BruteForceDetector(threshold=args.threshold, window_seconds=args.window)
+    cfg = load_config(args.config)
+
+    file_path = args.file or cfg["log"]["file_path"]
+    threshold = args.threshold if args.threshold is not None else cfg["detection"]["threshold"]
+    window = args.window if args.window is not None else cfg["detection"]["window_seconds"]
+    whitelist = cfg.get("whitelist", [])
+    
+    block = args.block or cfg["mitigation"]["block_enabled"]
+    dry_run = not args.no_dry_run if args.no_dry_run else cfg["mitigation"]["dry_run"]
+
+    tg_cfg = cfg.get("telegram", {})
+    if args.telegram:
+        tg_cfg = {"enabled": True, "bot_token": args.telegram[0], "chat_id": args.telegram[1]}
+
+    detector = BruteForceDetector(threshold=threshold, window_seconds=window, whitelist=whitelist)
 
     if args.watch:
-        run_watch_mode(args, detector)
+        run_watch_mode(file_path, detector, block=block, dry_run=dry_run, tg_config=tg_cfg)
     else:
-        run_batch_analysis(args, detector)
+        run_batch_analysis(file_path, detector, block=block, dry_run=dry_run, json_path=args.json, csv_path=args.csv, tg_config=tg_cfg)
 
 if __name__ == "__main__":
     main()
