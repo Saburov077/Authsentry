@@ -3,6 +3,7 @@ from rich.console import Console
 from rich.table import Table
 from src.parser import parse_auth_line
 from src.detector import BruteForceDetector
+from src.reporter import export_to_json, export_to_csv
 
 console = Console()
 
@@ -20,6 +21,16 @@ def main():
         type=int,
         default=4,
         help="Порог неудачных попыток для срабатывания алерта (по умолчанию: 4)"
+    )
+    parser.add_argument(
+        "--json",
+        metavar="OUTPUT_PATH",
+        help="Путь для сохранения отчета в формате JSON (например: report.json)"
+    )
+    parser.add_argument(
+        "--csv",
+        metavar="OUTPUT_PATH",
+        help="Путь для сохранения отчета в формате CSV (например: report.csv)"
     )
     args = parser.parse_args()
 
@@ -66,6 +77,15 @@ def main():
         )
 
     console.print(table)
+
+    # Экспорт результатов
+    if args.json:
+        export_to_json(alerts, args.json)
+        console.print(f"[bold green]✓ Отчет JSON сохранен:[/bold green] {args.json}")
+
+    if args.csv:
+        export_to_csv(alerts, args.csv)
+        console.print(f"[bold green]✓ Отчет CSV сохранен:[/bold green] {args.csv}")
 
 if __name__ == "__main__":
     main()
