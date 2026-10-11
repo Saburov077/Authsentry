@@ -1,5 +1,9 @@
 # AuthSentry
 
+# AuthSentry
+
+[![Test Suite](https://github.com/Saburov077/authsentry/actions/workflows/tests.yml/badge.svg)](https://github.com/Saburov077/authsentry/actions/workflows/tests.yml)
+
 AuthSentry is a lightweight, host-based intrusion detection and prevention system (HIDS/IPS) written in Python. It analyzes OpenSSH authentication logs (`auth.log`), detects brute-force and password spraying attacks using sliding time windows, enriches indicators of compromise (IoCs) with Threat Intelligence, delivers real-time Telegram alerts, and generates automated firewall countermeasures.
 
 Directly aligned with MITRE ATT&CK technique: **[T1110 (Brute Force)](https://attack.mitre.org/techniques/T1110/)**.
