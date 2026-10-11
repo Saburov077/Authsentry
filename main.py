@@ -39,9 +39,15 @@ def main():
         metavar=("BOT_TOKEN", "CHAT_ID"),
         help="Отправить алерт в Telegram: передайте TOKEN и CHAT_ID"
     )
+    parser.add_argument(
+        "--window", "-w",
+        type=int,
+        default=120,
+        help="Ширина временного окна в секундах (по умолчанию: 120)"
+    )
     args = parser.parse_args()
 
-    detector = BruteForceDetector(threshold=args.threshold)
+    detector = BruteForceDetector(threshold=args.threshold, window_seconds=args.window)
     processed_lines = 0
 
     console.print(f"[bold cyan]Запуск анализа файла:[/bold cyan] {args.file}")

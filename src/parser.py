@@ -1,20 +1,33 @@
 import re
+from datetime import datetime
 from typing import Optional, Dict
 
-# Регулярное выражение для разбора неудачных попыток входа SSH
-FAILED_LOGIN_REGEX = re.compile(
-    r"^(?P<month>\w{3})\s+(?P<day>\d+)\s+(?P<time>\d{2}:\d{2}:\d{2})\s+"
-    r"(?P<host>[\w\.\-]+)\s+sshd\[\d+\]:\s+Failed password for (?:invalid user )?"
-    r"(?P<username>\S+)\s+from\s+(?P<ip>\d{1,3}(?:\.\d{1,3}){3})"
+# Регулярное выражение для извлечения времени, статуса, пользователя и IP
+FAILED_PATTERN = re.compile(
+    r"^(?P<month>[A-Za-z]{3})\s+(?P<day>\d+)\s+(?P<time>\d{2}:\d{2}:\d{2})\s+\S+\s+sshd\[\d+\]:\s+"
+    r"Failed password for (?:invalid user )?(?P<username>\S+) from (?P<ip>\d{1,3}(?:\.\d{1,3}){3})"
 )
 
-def parse_auth_line(line: str) -> Optional[Dict[str, str]]:
+def parse_auth_line(line: str, reference_year: int = 2026) -> Optional[Dict[str, str | datetime]]:
     """
-    Принимает одну строку лога.
-    Возвращает словарь с полями (ip, username, time, host, month, day),
-    либо None, если строка не содержит сведений о сбое пароля.
+    Парсит строку auth.log. Возвращает словарь с нормализованным datetime или None.
     """
-    match = FAILED_LOGIN_REGEX.search(line.strip())
+    match = FAILED_PATTERN.search(line)
     if not match:
         return None
-    return match.groupdict()
+
+    data = match.groupdict()
+    
+    # Системный syslog не пишет год, поэтому подставляем текущий
+    date_str = f"{reference_year} {data['month']} {data['day']} {data['time']}"
+    try:
+        timestamp = datetime.strptime(date_str, "%Y %b %d %H:%M:%S")
+    except ValueError:
+        timestamp = datetime.now()
+
+    return {
+        "timestamp": timestamp,
+        "time_str": data["time"],
+        "username": data["username"],
+        "ip": data["ip"]
+    }
