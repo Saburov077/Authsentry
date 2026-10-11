@@ -11,8 +11,7 @@ The tool directly aligns with MITRE ATT&CK technique **[T1110 (Brute Force)](htt
 Clone the repository to your local machine and navigate into the project directory:
 
 ```bash
-git clone [https://github.com/Saburov077/authsentry.git](https://github.com/Saburov077/authsentry.git)
-cd authsentry
+[https://github.com/Saburov077/authsentry.git](https://github.com/Saburov077/authsentry.git) && cd authsentry
 ```
 
 Create an isolated virtual environment under `.venv` to prevent dependency conflicts:
