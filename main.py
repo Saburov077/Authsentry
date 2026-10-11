@@ -4,6 +4,7 @@ from rich.table import Table
 from src.parser import parse_auth_line
 from src.detector import BruteForceDetector
 from src.reporter import export_to_json, export_to_csv
+from src.notifier import send_telegram_alert
 
 console = Console()
 
@@ -25,12 +26,18 @@ def main():
     parser.add_argument(
         "--json",
         metavar="OUTPUT_PATH",
-        help="Путь для сохранения отчета в формате JSON (например: report.json)"
+        help="Путь для сохранения отчета в формате JSON"
     )
     parser.add_argument(
         "--csv",
         metavar="OUTPUT_PATH",
-        help="Путь для сохранения отчета в формате CSV (например: report.csv)"
+        help="Путь для сохранения отчета в формате CSV"
+    )
+    parser.add_argument(
+        "--telegram",
+        nargs=2,
+        metavar=("BOT_TOKEN", "CHAT_ID"),
+        help="Отправить алерт в Telegram: передайте TOKEN и CHAT_ID"
     )
     args = parser.parse_args()
 
@@ -86,6 +93,15 @@ def main():
     if args.csv:
         export_to_csv(alerts, args.csv)
         console.print(f"[bold green]✓ Отчет CSV сохранен:[/bold green] {args.csv}")
+
+    # Отправка в Telegram
+    if args.telegram:
+        token, chat_id = args.telegram
+        console.print("[dim]Отправка оповещения в Telegram...[/dim]")
+        if send_telegram_alert(token, chat_id, alerts):
+            console.print("[bold green]✓ Алерт успешно отправлен в Telegram![/bold green]")
+        else:
+            console.print("[bold red]✗ Не удалось отправить алерт в Telegram (проверьте токен и chat_id).[/bold red]")
 
 if __name__ == "__main__":
     main()
