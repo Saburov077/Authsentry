@@ -1,2 +1,0 @@
-ip,attempts,targeted_users,first_seen,last_seen,severity
-192.168.1.105,5,"root, test, user1, admin, ubnt",00:15:10,00:15:20,HIGH
