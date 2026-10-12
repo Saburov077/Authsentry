@@ -121,8 +121,13 @@ Deploy AuthSentry as an isolated background daemon using Docker Compose:
 
 ```bash
 docker compose up -d --build
+```
 
----
+View live detection logs in the container stream:
+
+```bash
+docker logs -f authsentry
+```
 
 ## Telegram alert notifications
 
