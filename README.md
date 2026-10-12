@@ -115,6 +115,13 @@ Export detected incidents into structured machine-readable formats for SIEM inge
 python main.py --json reports/incidents.json --csv reports/incidents.csv
 ```
 
+### Running with Docker
+
+Deploy AuthSentry as an isolated background daemon using Docker Compose:
+
+```bash
+docker compose up -d --build
+
 ---
 
 ## Telegram alert notifications

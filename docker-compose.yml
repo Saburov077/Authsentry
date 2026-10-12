@@ -1,0 +1,13 @@
+services:
+  authsentry:
+    build: .
+    container_name: authsentry
+    restart: unless-stopped
+    volumes:
+      # Read host configuration
+      - ./config.yaml:/app/config.yaml:ro
+      # Read host authentication logs in read-only mode
+      - /var/log/auth.log:/app/sample_logs/auth.log:ro
+      # Persist export artifacts
+      - ./reports:/app/reports
+    command: ["python", "main.py", "--watch"]
